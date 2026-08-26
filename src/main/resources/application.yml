@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: url-shortener
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/shortener}
+    username: ${DB_USER:shortener}
+    password: ${DB_PASSWORD:shortener}
+    hikari:
+      maximum-pool-size: 20
+      connection-timeout: 3000
+  jpa:
+    hibernate:
+      ddl-auto: validate      # Flyway owns the schema; Hibernate only verifies it matches.
+    open-in-view: false
+    properties:
+      hibernate.jdbc.batch_size: 50
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 250ms          # The cache must never be the reason a redirect is slow.
+      connect-timeout: 250ms
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful          # Drain in-flight redirects; the click buffer flushes on close.
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+springdoc:
+  swagger-ui:
+    path: /docs
+
+app:
+  base-url: ${BASE_URL:http://localhost:8080}
+  code:
+    length: 7                 # 62^7 ~= 3.5e12 -- see docs/adr/0001-short-code-generation.md
+    max-generation-attempts: 5
+    reserved:
+      - links
+      - api-keys
+      - health
+      - healthz
+      - actuator
+      - docs
+      - api
+      - admin
+      - static
+      - favicon.ico
+      - robots.txt
+      - v3
+  cache:
+    ttl: PT10M
+    negative-ttl: PT30S       # Short: a code created after a 404 must go live quickly.
+  ratelimit:
+    enabled: true
+    create-per-minute: 60     # per client IP, POST /links
+    redirect-per-minute: 600  # per client IP, GET /{code}
+  analytics:
+    queue-capacity: 50000
+    flush-interval: PT2S
+    flush-batch-size: 5000
+  auth:
+    # DISABLED -> OPTIONAL -> REQUIRED. See config/AuthMode for the rollout order.
+    mode: ${AUTH_MODE:OPTIONAL}
+    # No default on purpose: unset means /api-keys refuses every request.
+    admin-token: ${ADMIN_TOKEN:}
+  security:
+    # Set false ONLY for local development against localhost targets.
+    block-private-networks: ${BLOCK_PRIVATE_NETWORKS:true}
+    max-url-length: 2048
+
+logging:
+  level:
+    com.schwab.shortener: INFO

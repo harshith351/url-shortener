@@ -1,0 +1,46 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      # Gate 1 -- compilation and unit tests.
+      - name: Unit tests
+        run: mvn -B test
+
+      # Gate 2 -- integration tests against real Postgres and Redis.
+      # Docker is available on ubuntu-latest, so Testcontainers needs no extra setup.
+      - name: Integration tests
+        run: mvn -B verify -DskipUnitTests=false
+
+      # Gate 3 -- dependency vulnerabilities. Fails the build on CVSS >= 7.
+      # NVD API key avoids the unauthenticated rate limit; without it this step is slow.
+      - name: Dependency vulnerability scan
+        run: >
+          mvn -B org.owasp:dependency-check-maven:9.0.9:check
+          -DfailBuildOnCVSS=7
+          -DnvdApiKey=${{ secrets.NVD_API_KEY }}
+
+      # Gate 4 -- static analysis for common Java security defects.
+      - name: Static analysis (SpotBugs + FindSecBugs)
+        run: mvn -B com.github.spotbugs:spotbugs-maven-plugin:4.8.3.1:check
+
+      - name: Publish coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco
+          path: target/site/jacoco
