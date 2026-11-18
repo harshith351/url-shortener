@@ -8,11 +8,8 @@ Start with the [engineering summary](docs/engineering-summary.md) for the reason
 the design; this file covers how to run it.
 
 ---
-
 ## Quick start
-
 Requires Java 21, Maven 3.9+, and Docker.
-
 ```bash
 docker compose up -d --wait     # Postgres + Redis
 mvn spring-boot:run             # Flyway migrates on startup
